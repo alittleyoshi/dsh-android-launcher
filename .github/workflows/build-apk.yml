@@ -59,8 +59,16 @@ jobs:
         shell: bash
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
-          apksigner verify --verbose --print-certs "$APK"
-          SHA256="$(apksigner verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr '[:lower:]' '[:upper:]')"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner -perm -u+x | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "apksigner not found under $SDK_ROOT/build-tools" >&2
+            find "$SDK_ROOT/build-tools" -maxdepth 2 -type f -name 'apksigner*' -print >&2 || true
+            exit 1
+          fi
+          echo "Using apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          SHA256="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr '[:lower:]' '[:upper:]')"
           EXPECTED="8480F53ED949A205CBB179B999C89930744D1A35E776FC3964EAD83198E6B740"
           if [ "$SHA256" != "$EXPECTED" ]; then
             echo "Unexpected signing certificate: $SHA256" >&2
