@@ -67,9 +67,15 @@ jobs:
             exit 1
           fi
           echo "Using apksigner: $APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
-          SHA256="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr '[:lower:]' '[:upper:]')"
+          VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
+          printf '%s\n' "$VERIFY_OUTPUT"
+          SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | awk '/certificate SHA-256 digest:/ {print $NF; exit}' | tr '[:lower:]' '[:upper:]')"
           EXPECTED="8480F53ED949A205CBB179B999C89930744D1A35E776FC3964EAD83198E6B740"
+          echo "Detected signing certificate: $SHA256"
+          if [ -z "$SHA256" ]; then
+            echo "Could not extract signing certificate SHA-256 digest" >&2
+            exit 1
+          fi
           if [ "$SHA256" != "$EXPECTED" ]; then
             echo "Unexpected signing certificate: $SHA256" >&2
             exit 1
