@@ -37,8 +37,35 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "build-tools;35.0.0"
 
+      - name: Prepare fixed signing keystore
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_B64" ]; then
+            echo "ANDROID_KEYSTORE_B64 secret is missing" >&2
+            exit 1
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/dsh-android-signing.p12"
+          printf '%s' "$ANDROID_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "ANDROID_KEYSTORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          keytool -list -keystore "$KEYSTORE_PATH" -storetype PKCS12 -storepass android -alias dshlauncher >/dev/null
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          apksigner verify --verbose --print-certs "$APK"
+          SHA256="$(apksigner verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED="8480F53ED949A205CBB179B999C89930744D1A35E776FC3964EAD83198E6B740"
+          if [ "$SHA256" != "$EXPECTED" ]; then
+            echo "Unexpected signing certificate: $SHA256" >&2
+            exit 1
+          fi
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

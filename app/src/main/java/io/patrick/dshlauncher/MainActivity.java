@@ -36,6 +36,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_TERMUX_PERMISSION = 2101;
     private static final String DSH_URL = "http://127.0.0.1:3080";
     private static final int START_TIMEOUT_MS = 25000;
+    private static final int DESKTOP_VIEWPORT_CSS_PX = 1200;
     private static final String DESKTOP_USER_AGENT =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
@@ -145,15 +146,10 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
 
-        // Harness is primarily a desktop UI. Mirror the browser workflow of
-        // "Desktop site" and let WebView fit the wide page to the phone.
         settings.setUserAgentString(DESKTOP_USER_AGENT);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
         settings.setTextZoom(100);
-
-        // Keep the page zoomable like a desktop site in Edge/Chrome, but hide
-        // the old on-screen +/- controls. Pinch-to-zoom and double-tap remain.
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
@@ -182,6 +178,41 @@ public class MainActivity extends Activity {
                 openExternal(uri);
                 return true;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                Uri uri = Uri.parse(url);
+                String host = uri.getHost();
+                if ("127.0.0.1".equals(host) || "localhost".equals(host)) {
+                    enforceDesktopViewport(view);
+                }
+            }
+        });
+    }
+
+    private void enforceDesktopViewport(WebView view) {
+        String script = "(function(){" +
+                "var m=document.querySelector('meta[name=\\\"viewport\\\"]');" +
+                "if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}" +
+                "m.setAttribute('content','width=" + DESKTOP_VIEWPORT_CSS_PX +
+                ", minimum-scale=0.1, maximum-scale=5.0, user-scalable=yes');" +
+                "document.documentElement.style.minWidth='" + DESKTOP_VIEWPORT_CSS_PX + "px';" +
+                "document.body.style.minWidth='" + DESKTOP_VIEWPORT_CSS_PX + "px';" +
+                "return window.innerWidth;" +
+                "})()";
+        view.evaluateJavascript(script, ignored -> {
+            // Re-apply overview scaling after the CSS viewport changes. This keeps
+            // the full desktop layout visible initially while preserving pinch zoom.
+            view.postDelayed(() -> {
+                if (!destroyed) {
+                    int cssWidth = Math.max(1, Math.round(view.getWidth() /
+                            getResources().getDisplayMetrics().density));
+                    int scalePercent = Math.max(10,
+                            Math.min(100, Math.round(cssWidth * 100f / DESKTOP_VIEWPORT_CSS_PX)));
+                    view.setInitialScale(scalePercent);
+                }
+            }, 80);
         });
     }
 

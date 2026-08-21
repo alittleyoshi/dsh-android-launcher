@@ -2,6 +2,9 @@ plugins {
     id 'com.android.application'
 }
 
+def ciRunNumber = System.getenv('GITHUB_RUN_NUMBER')
+def signingPath = System.getenv('ANDROID_KEYSTORE_FILE')
+
 android {
     namespace 'io.patrick.dshlauncher'
     compileSdk 36
@@ -10,13 +13,33 @@ android {
         applicationId 'io.patrick.dshlauncher'
         minSdk 26
         targetSdk 36
-        versionCode 1
-        versionName '0.1.0'
+        versionCode ciRunNumber != null ? ciRunNumber.toInteger() : 1
+        versionName ciRunNumber != null ? "0.2.${ciRunNumber}" : '0.2.0'
+    }
+
+    signingConfigs {
+        fixedDebug {
+            if (signingPath != null && !signingPath.isBlank()) {
+                storeFile file(signingPath)
+                storePassword 'android'
+                keyAlias 'dshlauncher'
+                keyPassword 'android'
+                storeType 'PKCS12'
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (signingPath != null && !signingPath.isBlank()) {
+                signingConfig signingConfigs.fixedDebug
+            }
+        }
         release {
             minifyEnabled false
+            if (signingPath != null && !signingPath.isBlank()) {
+                signingConfig signingConfigs.fixedDebug
+            }
         }
     }
 
