@@ -36,6 +36,9 @@ public class MainActivity extends Activity {
     private static final int REQUEST_TERMUX_PERMISSION = 2101;
     private static final String DSH_URL = "http://127.0.0.1:3080";
     private static final int START_TIMEOUT_MS = 25000;
+    private static final String DESKTOP_USER_AGENT =
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -141,7 +144,18 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setBuiltInZoomControls(false);
+
+        // Harness is primarily a desktop UI. Mirror the browser workflow of
+        // "Desktop site" and let WebView fit the wide page to the phone.
+        settings.setUserAgentString(DESKTOP_USER_AGENT);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setTextZoom(100);
+
+        // Keep the page zoomable like a desktop site in Edge/Chrome, but hide
+        // the old on-screen +/- controls. Pinch-to-zoom and double-tap remain.
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
 
         view.setWebChromeClient(new WebChromeClient());
